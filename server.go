@@ -19,6 +19,10 @@ type ImageServer struct {
 	mu      sync.RWMutex
 	images  map[string][]byte
 	counter uint64
+
+	// Latest frame for streaming mode
+	latestFrame     []byte
+	latestFrameLock sync.RWMutex
 }
 
 // NewImageServer creates a new image server on an available port
@@ -45,6 +49,7 @@ func NewImageServer() (*ImageServer, error) {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/stream.jpg", srv.handleStreamImage)
 	mux.HandleFunc("/", srv.handleImage)
 
 	srv.server = &http.Server{
@@ -57,6 +62,26 @@ func NewImageServer() (*ImageServer, error) {
 	go srv.server.Serve(listener)
 
 	return srv, nil
+}
+
+// handleStreamImage serves the latest frame (for streaming mode)
+func (s *ImageServer) handleStreamImage(w http.ResponseWriter, r *http.Request) {
+	s.latestFrameLock.RLock()
+	data := s.latestFrame
+	s.latestFrameLock.RUnlock()
+
+	if data == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Write(data)
+	fmt.Printf("[ImageServer] Stream: sent %d bytes to %s\n", len(data), r.RemoteAddr)
 }
 
 // handleImage serves stored images
@@ -97,6 +122,18 @@ func (s *ImageServer) Store(jpegData []byte) string {
 	s.mu.Unlock()
 
 	return fmt.Sprintf("http://%s:%d%s", s.localIP, s.port, path)
+}
+
+// UpdateLatestFrame updates the latest frame for streaming mode
+func (s *ImageServer) UpdateLatestFrame(jpegData []byte) {
+	s.latestFrameLock.Lock()
+	s.latestFrame = jpegData
+	s.latestFrameLock.Unlock()
+}
+
+// StreamURL returns the URL for the streaming endpoint
+func (s *ImageServer) StreamURL() string {
+	return fmt.Sprintf("http://%s:%d/stream.jpg", s.localIP, s.port)
 }
 
 // Close shuts down the image server

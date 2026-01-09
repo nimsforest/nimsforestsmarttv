@@ -16,6 +16,9 @@ type Renderer struct {
 
 	// Text rendering options
 	textOpts TextOptions
+
+	// Track which TVs have playback started (to avoid repeated Play calls)
+	playingTVs map[string]bool
 }
 
 // Option configures a Renderer
@@ -44,6 +47,7 @@ func NewRenderer(opts ...Option) (*Renderer, error) {
 			Color:      White,
 			Background: Black,
 		},
+		playingTVs: make(map[string]bool),
 	}
 
 	for _, opt := range opts {
@@ -81,13 +85,39 @@ func (r *Renderer) DisplayJPEG(ctx context.Context, tv *TV, jpegData []byte) err
 	// Store image on our server
 	imageURL := r.server.Store(jpegData)
 
-	// Send to TV
+	// Send to TV - always call Play to ensure TV fetches new image
 	if err := tv.setAVTransportURI(ctx, imageURL); err != nil {
 		return fmt.Errorf("set URI: %w", err)
 	}
 
 	if err := tv.play(ctx); err != nil {
 		return fmt.Errorf("play: %w", err)
+	}
+
+	return nil
+}
+
+// DisplayJPEGStream updates the streaming frame and ensures playback is started.
+// This is optimized for continuous frame streaming - the TV polls the same URL
+// and gets the latest frame each time.
+func (r *Renderer) DisplayJPEGStream(ctx context.Context, tv *TV, jpegData []byte) error {
+	// Update the latest frame
+	r.server.UpdateLatestFrame(jpegData)
+
+	// Only set URI and Play once per TV
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	tvKey := tv.ControlURL
+	if !r.playingTVs[tvKey] {
+		streamURL := r.server.StreamURL()
+		if err := tv.setAVTransportURI(ctx, streamURL); err != nil {
+			return fmt.Errorf("set stream URI: %w", err)
+		}
+		if err := tv.play(ctx); err != nil {
+			return fmt.Errorf("play stream: %w", err)
+		}
+		r.playingTVs[tvKey] = true
 	}
 
 	return nil
@@ -137,6 +167,9 @@ func (r *Renderer) DisplayVideo(ctx context.Context, tv *TV, videoURL string, ti
 
 // Stop stops playback on the TV
 func (r *Renderer) Stop(ctx context.Context, tv *TV) error {
+	r.mu.Lock()
+	delete(r.playingTVs, tv.ControlURL)
+	r.mu.Unlock()
 	return tv.stop(ctx)
 }
 
