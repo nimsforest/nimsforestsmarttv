@@ -133,6 +133,37 @@ func (tv *TV) play(ctx context.Context) error {
 	return tv.sendSOAP(ctx, "Play", soap)
 }
 
+// setAVTransportURIForVideo sends the SetAVTransportURI SOAP action for video/HLS streams
+func (tv *TV) setAVTransportURIForVideo(ctx context.Context, uri string, title string) error {
+	// Determine content type based on URL
+	contentType := "video/mp2t"
+	upnpClass := "object.item.videoItem"
+
+	// Check if it's an HLS stream
+	if strings.HasSuffix(uri, ".m3u8") || strings.Contains(uri, "m3u8") {
+		contentType = "application/x-mpegURL"
+	}
+
+	// Build DIDL-Lite metadata for video
+	metadata := fmt.Sprintf(`<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"><item id="1" parentID="0" restricted="1"><dc:title>%s</dc:title><upnp:class>%s</upnp:class><res protocolInfo="http-get:*:%s:*">%s</res></item></DIDL-Lite>`, title, upnpClass, contentType, uri)
+
+	// Escape for XML
+	metadata = escapeXML(metadata)
+
+	soap := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+      <InstanceID>0</InstanceID>
+      <CurrentURI>%s</CurrentURI>
+      <CurrentURIMetaData>%s</CurrentURIMetaData>
+    </u:SetAVTransportURI>
+  </s:Body>
+</s:Envelope>`, uri, metadata)
+
+	return tv.sendSOAP(ctx, "SetAVTransportURI", soap)
+}
+
 // stop sends the Stop SOAP action to the TV
 func (tv *TV) stop(ctx context.Context) error {
 	soap := `<?xml version="1.0" encoding="utf-8"?>

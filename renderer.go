@@ -104,6 +104,37 @@ func (r *Renderer) DisplayTextWithOptions(ctx context.Context, tv *TV, text stri
 	return r.Display(ctx, tv, img)
 }
 
+// DisplayHLS sends an HLS stream URL to the TV for playback.
+// The TV will fetch and play the HLS stream directly.
+// The title parameter is used for the stream's display name in the TV's UI.
+func (r *Renderer) DisplayHLS(ctx context.Context, tv *TV, hlsURL string, title string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Default title if not provided
+	if title == "" {
+		title = "HLS Stream"
+	}
+
+	// Send the HLS URL to the TV
+	if err := tv.setAVTransportURIForVideo(ctx, hlsURL, title); err != nil {
+		return fmt.Errorf("set HLS URI: %w", err)
+	}
+
+	// Start playback
+	if err := tv.play(ctx); err != nil {
+		return fmt.Errorf("play HLS: %w", err)
+	}
+
+	return nil
+}
+
+// DisplayVideo sends a video URL to the TV for playback.
+// This is an alias for DisplayHLS and works with various video stream formats.
+func (r *Renderer) DisplayVideo(ctx context.Context, tv *TV, videoURL string, title string) error {
+	return r.DisplayHLS(ctx, tv, videoURL, title)
+}
+
 // Stop stops playback on the TV
 func (r *Renderer) Stop(ctx context.Context, tv *TV) error {
 	return tv.stop(ctx)

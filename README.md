@@ -48,6 +48,13 @@ func main() {
     if err != nil {
         panic(err)
     }
+
+    // Or stream HLS video
+    hlsURL := "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+    err = renderer.DisplayHLS(ctx, &tvs[0], hlsURL, "My Stream")
+    if err != nil {
+        panic(err)
+    }
 }
 ```
 
@@ -68,9 +75,30 @@ Commands:
 
 - **Zero external dependencies** - Standard library only
 - **SSDP discovery** - Automatically find Smart TVs on your network
-- **DLNA/UPnP transport** - Send images via AVTransport
+- **DLNA/UPnP transport** - Send images and video streams via AVTransport
+- **HLS streaming** - Stream HLS video directly to your TV
 - **Text rendering** - Built-in text-to-image for simple messages
 - **Thread-safe** - Safe for concurrent use
+
+## HLS Streaming
+
+The library supports streaming HLS (HTTP Live Streaming) content to your TV. The TV fetches and plays the stream directly.
+
+```go
+// Stream HLS to TV
+hlsURL := "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+err := renderer.DisplayHLS(ctx, tv, hlsURL, "Big Buck Bunny")
+
+// DisplayVideo is an alias that works the same way
+err := renderer.DisplayVideo(ctx, tv, videoURL, "My Video")
+```
+
+Supported formats:
+- HLS streams (.m3u8) - Uses `application/x-mpegURL` content type
+- MPEG-TS streams - Uses `video/mp2t` content type
+- Other video URLs - Falls back to `video/mp2t`
+
+The title parameter is displayed in the TV's UI during playback.
 
 ## Supported TVs
 
