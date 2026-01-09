@@ -61,11 +61,14 @@ func NewImageServer() (*ImageServer, error) {
 
 // handleImage serves stored images
 func (s *ImageServer) handleImage(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[ImageServer] Request: %s %s from %s\n", r.Method, r.URL.Path, r.RemoteAddr)
+
 	s.mu.RLock()
 	data, ok := s.images[r.URL.Path]
 	s.mu.RUnlock()
 
 	if !ok {
+		fmt.Printf("[ImageServer] Not found: %s (have %d images)\n", r.URL.Path, len(s.images))
 		http.NotFound(w, r)
 		return
 	}
@@ -73,7 +76,8 @@ func (s *ImageServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	w.Write(data)
+	n, _ := w.Write(data)
+	fmt.Printf("[ImageServer] Sent %d bytes\n", n)
 }
 
 // Store stores an image and returns its URL

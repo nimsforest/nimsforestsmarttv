@@ -55,9 +55,18 @@ func NewRenderer(opts ...Option) (*Renderer, error) {
 
 // Display renders an image on the given TV
 func (r *Renderer) Display(ctx context.Context, tv *TV, img image.Image) error {
-	// Encode image as JPEG
+	// Convert to RGB (some TVs don't handle RGBA JPEGs well)
+	bounds := img.Bounds()
+	rgb := image.NewRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			rgb.Set(x, y, img.At(x, y))
+		}
+	}
+
+	// Encode image as baseline JPEG (most compatible)
 	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+	if err := jpeg.Encode(&buf, rgb, &jpeg.Options{Quality: 85}); err != nil {
 		return fmt.Errorf("encode JPEG: %w", err)
 	}
 

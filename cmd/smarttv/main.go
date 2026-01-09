@@ -12,8 +12,11 @@ import (
 	smarttv "github.com/nimsforest/nimsforestsmarttv"
 )
 
+var scanner *bufio.Scanner
+
 func main() {
 	ctx := context.Background()
+	scanner = bufio.NewScanner(os.Stdin)
 
 	fmt.Println("Smart TV Renderer")
 	fmt.Println("=================")
@@ -53,7 +56,6 @@ func main() {
 	fmt.Println()
 
 	// Interactive loop
-	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("> ")
 		if !scanner.Scan() {
@@ -146,7 +148,6 @@ func selectTV(tvs []smarttv.TV) *smarttv.TV {
 		fmt.Printf("  [%d] %s\n", i+1, tv.String())
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("Enter number: ")
 		if !scanner.Scan() {
