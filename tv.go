@@ -178,6 +178,25 @@ func (tv *TV) stop(ctx context.Context) error {
 	return tv.sendSOAP(ctx, "Stop", soap)
 }
 
+// setNextAVTransportURI sets the next content to play (for gapless transitions)
+func (tv *TV) setNextAVTransportURI(ctx context.Context, uri string) error {
+	metadata := fmt.Sprintf(`<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"><item id="1" parentID="0" restricted="1"><dc:title>Image</dc:title><upnp:class>object.item.imageItem.photo</upnp:class><res protocolInfo="http-get:*:image/jpeg:*">%s</res></item></DIDL-Lite>`, uri)
+	metadata = escapeXML(metadata)
+
+	soap := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetNextAVTransportURI xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+      <InstanceID>0</InstanceID>
+      <NextURI>%s</NextURI>
+      <NextURIMetaData>%s</NextURIMetaData>
+    </u:SetNextAVTransportURI>
+  </s:Body>
+</s:Envelope>`, uri, metadata)
+
+	return tv.sendSOAP(ctx, "SetNextAVTransportURI", soap)
+}
+
 // sendSOAP sends a SOAP request to the TV's AVTransport control endpoint
 func (tv *TV) sendSOAP(ctx context.Context, action string, body string) error {
 	req, err := http.NewRequestWithContext(ctx, "POST", tv.ControlURL, bytes.NewBufferString(body))

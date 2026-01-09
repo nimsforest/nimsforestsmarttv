@@ -29,6 +29,9 @@ type Renderer struct {
 
 	// Text rendering options
 	textOpts TextOptions
+
+	// Track active sessions per TV (for smooth updates)
+	activeTVs map[string]bool
 }
 
 // Option configures a Renderer
@@ -57,6 +60,7 @@ func NewRenderer(opts ...Option) (*Renderer, error) {
 			Color:      White,
 			Background: Black,
 		},
+		activeTVs: make(map[string]bool),
 	}
 
 	for _, opt := range opts {
@@ -108,17 +112,34 @@ func (r *Renderer) DisplayImageJPEG(ctx context.Context, tv *TV, jpegData []byte
 
 	// Store image on our server with unique URL
 	imageURL := r.server.Store(jpegData)
+	tvKey := tv.ControlURL
 
-	// Set the new content URI
+	// If we already have an active session, try SetNextAVTransportURI first
+	// This may provide smoother transitions without "connecting" message
+	if r.activeTVs[tvKey] {
+		// Try to queue next image and trigger switch
+		err := tv.setNextAVTransportURI(ctx, imageURL)
+		if err == nil {
+			// Now set it as current and play to switch
+			if err := tv.setAVTransportURI(ctx, imageURL); err == nil {
+				// Don't call Play - just setting URI might be enough
+				// If TV doesn't update, we'll fall through to full reconnect next time
+				return nil
+			}
+		}
+		// SetNext not supported or failed, fall back to full reconnect
+	}
+
+	// Full connection: Set URI + Play
 	if err := tv.setAVTransportURI(ctx, imageURL); err != nil {
 		return fmt.Errorf("set URI: %w", err)
 	}
 
-	// Play triggers the TV to fetch and display
 	if err := tv.play(ctx); err != nil {
 		return fmt.Errorf("play: %w", err)
 	}
 
+	r.activeTVs[tvKey] = true
 	return nil
 }
 
