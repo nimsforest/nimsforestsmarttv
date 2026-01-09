@@ -65,6 +65,7 @@ func NewImageServer() (*ImageServer, error) {
 }
 
 // handleStreamImage serves the latest frame (for streaming mode)
+// Includes headers to encourage TV to re-fetch periodically
 func (s *ImageServer) handleStreamImage(w http.ResponseWriter, r *http.Request) {
 	s.latestFrameLock.RLock()
 	data := s.latestFrame
@@ -77,9 +78,12 @@ func (s *ImageServer) handleStreamImage(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	// Aggressive no-cache to force re-fetch
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
 	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Expires", "0")
+	w.Header().Set("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
+	// Refresh header - some clients honor this
+	w.Header().Set("Refresh", "1")
 	w.Write(data)
 	fmt.Printf("[ImageServer] Stream: sent %d bytes to %s\n", len(data), r.RemoteAddr)
 }
